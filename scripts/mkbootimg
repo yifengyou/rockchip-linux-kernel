@@ -1,4 +1,6 @@
 #!/usr/bin/env python
+# -*- encoding: utf-8 -*-
+
 # Copyright 2015, The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -79,6 +81,7 @@ def write_header_v3(args):
 
     args.output.write(pack('I', args.header_version))   # version of bootimage header
     args.output.write(pack('1536s', args.cmdline.encode()))
+    # 填充4096 BOOT_IMAGE_HEADER_V3_PAGESIZE = 4096
     pad_file(args.output, BOOT_IMAGE_HEADER_V3_PAGESIZE)
 
 def write_vendor_boot_header(args):
@@ -295,22 +298,27 @@ def main():
             raise ValueError('--vendor_ramdisk missing or invalid')
         write_vendor_boot_header(args)
         write_vendor_boot_data(args)
+    print("args.header_version:", args.header_version)
     if args.output is not None:
         if args.kernel is None:
-            raise ValueError('kernel must be supplied when creating a boot image')
-        if args.second is not None and args.header_version > 2:
+            raise ValueError('kernel must be supplied when creating a boot image') # --kernel 参数必须指定
+        if args.second is not None and args.header_version > 2: # header_version 默认值为 0
             raise ValueError('--second not compatible with given header version')
         img_id = write_header(args)
+        print("write_header done!")
         if args.header_version > 2:
             write_data(args, BOOT_IMAGE_HEADER_V3_PAGESIZE)
         else:
+            # pagesize默认不是4k，而是2048
             write_data(args, args.pagesize)
-        if args.id and img_id is not None:
+        print("write_data done!")
+        # if args.id and img_id is not None:
+        if True:
             # Python 2's struct.pack returns a string, but py3 returns bytes.
             if isinstance(img_id, str):
                 img_id = [ord(x) for x in img_id]
-            print('0x' + ''.join('{:02x}'.format(c) for c in img_id))
+            print('Image ID:', '0x' + ''.join('{:02x}'.format(c) for c in img_id))
 
-
+# ./scripts/mkbootimg --kernel ./arch/arm64/boot/Image  --second resource.img  -o boot.img
 if __name__ == '__main__':
     main()

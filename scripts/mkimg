@@ -2,7 +2,12 @@
 # SPDX-License-Identifier: GPL-2.0
 # Copyright (c) 2019 Fuzhou Rockchip Electronics Co., Ltd.
 
+# yifengyou: 遇到错误结束
 set -e
+
+# yifengyou: 打印调试信息
+#set -x
+
 
 usage() {
 	cat >&2 << USAGE
@@ -18,6 +23,7 @@ USAGE
 while [ $# -gt 0 ]; do
 	case $1 in
 		--dtb)
+			# 只有一个参数
 			DTB=$2
 			shift 2
 			;;
@@ -37,6 +43,7 @@ done
 
 srctree=${srctree-"."}
 objtree=${objtree-"."}
+# yifengyou: 判断架构
 if [ "${ARCH}" == "" ]; then
 	if [ "$($srctree/scripts/config --state CONFIG_ARM)" == "y" ]; then
 		ARCH=arm
@@ -44,12 +51,16 @@ if [ "${ARCH}" == "" ]; then
 		ARCH=arm64
 	fi
 fi
-
+echo " ARCH: $ARCH"
+# yifengyou: uboot logo 启动画面
 LOGO_PATH=${srctree}/logo.bmp
 [ -f ${LOGO_PATH} ] && LOGO=logo.bmp
+echo " LOGO: $LOGO_PATH"
 
+# yifengyou: kernel logo 启动画面
 LOGO_KERNEL_PATH=${srctree}/logo_kernel.bmp
 [ -f ${LOGO_KERNEL_PATH} ] && LOGO_KERNEL=logo_kernel.bmp
+echo " LOGO_KERNEL_PATH: $LOGO_KERNEL_PATH"
 
 KERNEL_IMAGE_PATH=${objtree}/arch/${ARCH}/boot/Image
 KERNEL_IMAGE_ARG="--kernel ${KERNEL_IMAGE_PATH}"
@@ -63,6 +74,12 @@ else
 	KERNEL_ZIMAGE_ARG="--kernel ${objtree}/arch/arm64/boot/Image.lz4"
 	ZIMAGE=Image.lz4
 fi
+
+echo " DTB_PATH: $ZIMAGE"
+echo " KERNEL_ZIMAGE_ARG: $KERNEL_ZIMAGE_ARG"
+echo " ZIMAGE: $ZIMAGE"
+
+# yifengyou: 判定需要有kernel Image 同时对应的dtb也必须存在，否则无法进行下一步
 if [ ! -f ${DTB_PATH} ]; then
 	echo "No dtb" >&2
 	usage
@@ -75,23 +92,51 @@ ITS=${OUT}/boot.its
 MKIMAGE=${MKIMAGE-"mkimage"}
 MKIMAGE_ARG="-E -p 0x800"
 
+
+######################################################################################
+
 make_boot_img()
 {
+	# yifengyou: 指定ramdisk
 	RAMDISK_IMG_PATH=${objtree}/ramdisk.img
 	[ -f ${RAMDISK_IMG_PATH} ] && RAMDISK_IMG=ramdisk.img && RAMDISK_ARG="--ramdisk ${RAMDISK_IMG_PATH}"
-
+	echo "MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM"
+	echo " CMD: ${srctree}/scripts/mkbootimg ${KERNEL_IMAGE_ARG} ${RAMDISK_ARG} --second resource.img " \
+			"-o boot.img"
 	${srctree}/scripts/mkbootimg \
 		${KERNEL_IMAGE_ARG} \
 		${RAMDISK_ARG} \
 		--second resource.img \
 		-o boot.img && \
+	echo "Pack to boot.img successed!"
 	echo "  Image:  boot.img (with Image ${RAMDISK_IMG} resource.img) is ready";
+	echo "WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW"
+
+	# yifengyou: zboot.img 做了压缩而已，并非必须
+	# cmd_arch/arm64/boot/Image.lz4 := (cat arch/arm64/boot/Image | lz4c -c1 stdin stdout && printf \\010\\060\\007\\001) > arch/arm64/boot/Image.lz4 || (rm -f arch/arm64/boot/Image.lz4 ; false)
+
+	echo "MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM"
+	echo " CMD: ${srctree}/scripts/mkbootimg ${KERNEL_ZIMAGE_ARG}  ${RAMDISK_ARG} --second resource.img " \
+			"-o zboot.img "
 	${srctree}/scripts/mkbootimg \
 		${KERNEL_ZIMAGE_ARG} \
 		${RAMDISK_ARG} \
 		--second resource.img \
 		-o zboot.img && \
+	echo "Pack to zboot.img successed!"
 	echo "  Image:  zboot.img (with ${ZIMAGE} ${RAMDISK_IMG} resource.img) is ready"
+	echo "WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW"
+
+	echo "MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM"
+	echo " CMD: ${srctree}/scripts/mkkrnlimg ${KERNEL_IMAGE_PATH} " \
+			"-o kernel.img "
+	${srctree}/scripts/mkkrnlimg \
+		${KERNEL_IMAGE_PATH} \
+		kernel.img && \
+	echo "Pack to kernel.img successed!"
+	echo "  Image:  kernel.img (with ${ZIMAGE}) is ready"
+	echo "WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW"
+
 }
 
 repack_boot_img()
@@ -204,6 +249,11 @@ repack_itb()
 	gen_itb
 }
 
+######################################################################################
+
+# This program is trying to convert different format of bmpfile to a same formatto
+#   make vop can handle bmpfile easily
+#   try such cmd to make it work python bmpconvert xxx/xxx.bmp
 if [ -x ${srctree}/scripts/bmpconvert ]; then
 	if [ -f ${LOGO_PATH} ]; then
 		${srctree}/scripts/bmpconvert ${LOGO_PATH};
@@ -221,10 +271,16 @@ if [ "${srctree}" != "${objtree}" ]; then
 		cp -a ${LOGO_KERNEL_PATH} ${objtree}/;
 	fi
 fi
-scripts/resource_tool ${DTB_PATH} ${LOGO} ${LOGO_KERNEL} >/dev/null
+
+echo "MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM"
+# yifengyou: 制作resource.img（ ${DTB_PATH} ${LOGO} ${LOGO_KERNEL} ）
+echo " CMD： scripts/resource_tool ${DTB_PATH} ${LOGO} ${LOGO_KERNEL}"
+scripts/resource_tool ${DTB_PATH} ${LOGO} ${LOGO_KERNEL}
 echo "  Image:  resource.img (with ${DTB} ${LOGO} ${LOGO_KERNEL}) is ready"
+echo "WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW"
 
 if [ -f "${BOOT_IMG}" ]; then
+	# skip this
 	if file -p -b ${BOOT_IMG} | grep -q 'Device Tree Blob' ; then
 		repack_itb;
 	elif [ -x ${srctree}/scripts/repack-bootimg ]; then
