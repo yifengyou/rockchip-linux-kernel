@@ -127,6 +127,7 @@ make_boot_img()
 	echo "  Image:  zboot.img (with ${ZIMAGE} ${RAMDISK_IMG} resource.img) is ready"
 	echo "WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW"
 
+    # $(Q)scripts/mkkrnlimg $(objtree)/arch/arm64/boot/Image $(objtree)/kernel.img
 	echo "MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM"
 	echo " CMD: ${srctree}/scripts/mkkrnlimg ${KERNEL_IMAGE_PATH} " \
 			"-o kernel.img "
